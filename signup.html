@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <title>ログイン</title>
+    <title>ユーザー登録</title>
 
     <!-- ==============================
          CDN読み込み
@@ -17,31 +17,33 @@
 
     <style>
       body {
-        background-color: #fafafa;
+        background: #fafafa;
+        font-family: "Noto Sans JP", sans-serif;
       }
     </style>
   </head>
 
   <body>
     <!-- ==============================
-         Vueアプリのマウントポイント
+         Vueのマウントターゲット
          ============================== -->
     <div id="app">
       <v-app>
         <v-container>
           <!-- タイトル -->
-          <v-row class="text-h4 mb-4" justify="center">ログイン</v-row>
+          <v-row class="text-h4 mb-4" justify="center">ユーザー登録</v-row>
 
+          <!-- 入力フォーム -->
           <v-row justify="center">
             <v-col cols="12" sm="6" md="4">
-              <!-- ユーザーID入力 -->
+              <!-- ユーザーID -->
               <v-text-field
                 v-model="userid"
                 label="ユーザーID"
                 outlined
               ></v-text-field>
 
-              <!-- パスワード入力 -->
+              <!-- パスワード -->
               <v-text-field
                 v-model="password"
                 label="パスワード"
@@ -49,17 +51,24 @@
                 outlined
               ></v-text-field>
 
+              <!-- 表示名 -->
+              <v-text-field
+                v-model="displayName"
+                label="表示名"
+                outlined
+              ></v-text-field>
+
               <!-- ==============================
-                   ログインボタン
+                   登録ボタン
                    ============================== -->
               <v-btn
                 color="primary"
                 class="mt-4"
                 block
-                @click="login"
+                @click="signup"
                 :disabled="loading"
               >
-                <template v-if="!loading">ログイン</template>
+                <template v-if="!loading">登録</template>
                 <template v-else>
                   <v-progress-circular
                     indeterminate
@@ -67,13 +76,13 @@
                     size="20"
                     class="mr-2"
                   ></v-progress-circular>
-                  認証中...
+                  登録中...
                 </template>
               </v-btn>
 
-              <!-- 新規登録へのリンクボタン -->
-              <v-btn variant="text" class="mt-2" block @click="goToSignup">
-                新規登録はこちら
+              <!-- ログイン画面に戻る -->
+              <v-btn variant="text" class="mt-2" block @click="goToLogin">
+                ログインに戻る
               </v-btn>
             </v-col>
           </v-row>
@@ -105,21 +114,22 @@
       createApp({
         setup() {
           // ------------------------------
-          // 画面上のリアクティブ変数
+          // 画面変数（リアクティブデータ）
           // ------------------------------
           const userid = ref("");
           const password = ref("");
+          const displayName = ref("");
           const loading = ref(false);
           const dialog = ref(false);
           const message = ref("");
 
           // =============================
-          // ログイン処理
+          // ユーザー登録処理
           // =============================
-          const login = async () => {
+          const signup = async () => {
             // --- 入力チェック ---
-            if (!userid.value || !password.value) {
-              message.value = "ユーザーIDとパスワードを入力してください。";
+            if (!userid.value || !password.value || !displayName.value) {
+              message.value = "すべての項目を入力してください。";
               dialog.value = true;
               return;
             }
@@ -128,58 +138,69 @@
 
             try {
               // --- API呼び出し ---
-              // バックエンドのLOGINUSERエンドポイントへPOST
+              // バックエンドの INSERTUSER エンドポイントへPOST
               const res = await axios.post(
-                "https://backapp-yukatazawa.m3harbor.net/api/LOGINUSER",
+                "https://backapp-yukatazawa.m3harbor.net/api/INSERTUSER",
                 {
                   id: userid.value,
                   password: password.value,
+                  name: displayName.value,
                 },
                 {
-                  // Cookie送受信を有効化（将来的にセッションを扱うため）
+                  // Cookie送受信の有効化（将来的なセッション利用を想定）
                   withCredentials: true,
                 }
               );
 
               console.log("レスポンス:", res);
 
-              // --- HTTPステータス200は成功として扱う ---
+              // --- HTTP 200の場合 ---
               if (res.status === 200) {
-                // 認証成功
+                // 登録成功
                 message.value = res.data.message;
                 dialog.value = true;
 
-                // 1秒後にホーム画面へ遷移
-                setTimeout(() => (window.location.href = "home.html"), 1000);
+                // 1秒後にログイン画面へ遷移
+                setTimeout(() => (window.location.href = "index.html"), 1000);
               } else {
-                // 認証失敗（resultがfailed）
-                message.value = res.data.message || "ログインに失敗しました。";
+                // 登録失敗
+                message.value = res.data.message || "登録に失敗しました。";
                 dialog.value = true;
               }
             } catch (err) {
-              // --- 通信エラー・認証エラー時 ---
+              // --- 通信エラーやサーバーエラー時 ---
               console.error("通信エラー:", err);
 
-              // サーバーからのエラーメッセージを優先的に表示
+              // サーバー側が返したメッセージを優先表示
               const serverMessage = err.response?.data?.message;
               message.value =
                 "通信エラー：" + (serverMessage || err.message || "不明なエラー");
               dialog.value = true;
             } finally {
+              // --- ローディング解除 ---
               loading.value = false;
             }
           };
 
           // =============================
-          // 新規登録画面へ遷移
+          // ログイン画面に戻る
           // =============================
-          const goToSignup = () => {
-            // 別画面に遷移
-            window.location.href = "signup.html";
+          const goToLogin = () => {
+            // シンプルなページ遷移
+            window.location.href = "index.html";
           };
 
           // Vueの返却値
-          return { userid, password, loading, dialog, message, login, goToSignup };
+          return {
+            userid,
+            password,
+            displayName,
+            loading,
+            dialog,
+            message,
+            signup,
+            goToLogin,
+          };
         },
       })
         .use(vuetify)
