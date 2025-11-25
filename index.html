@@ -4,9 +4,7 @@
     <meta charset="utf-8" />
     <title>ログイン</title>
 
-    <!-- ==============================
-         CDN読み込み
-         ============================== -->
+    <!-- CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://unpkg.com/vuetify@3.5.15/dist/vuetify.min.js"></script>
@@ -23,25 +21,19 @@
   </head>
 
   <body>
-    <!-- ==============================
-         Vueアプリのマウントポイント
-         ============================== -->
     <div id="app">
       <v-app>
         <v-container>
-          <!-- タイトル -->
           <v-row class="text-h4 mb-4" justify="center">ログイン</v-row>
 
           <v-row justify="center">
             <v-col cols="12" sm="6" md="4">
-              <!-- ユーザーID入力 -->
               <v-text-field
                 v-model="userid"
                 label="ユーザーID"
                 outlined
               ></v-text-field>
 
-              <!-- パスワード入力 -->
               <v-text-field
                 v-model="password"
                 label="パスワード"
@@ -49,9 +41,7 @@
                 outlined
               ></v-text-field>
 
-              <!-- ==============================
-                   ログインボタン
-                   ============================== -->
+              <!-- ログインボタン -->
               <v-btn
                 color="primary"
                 class="mt-4"
@@ -71,23 +61,28 @@
                 </template>
               </v-btn>
 
-              <!-- 新規登録へのリンクボタン -->
               <v-btn variant="text" class="mt-2" block @click="goToSignup">
                 新規登録はこちら
               </v-btn>
             </v-col>
           </v-row>
 
-          <!-- ==============================
-               メッセージダイアログ
-               ============================== -->
+          <!-- ダイアログ -->
           <v-dialog v-model="dialog" max-width="400">
             <v-card>
               <v-card-title class="headline">メッセージ</v-card-title>
               <v-card-text>{{ message }}</v-card-text>
               <v-card-actions>
                 <v-spacer></v-spacer>
-                <v-btn color="primary" variant="text" @click="dialog = false">
+                <v-btn
+                  color="primary"
+                  variant="text"
+                  v-if="showOkButton"
+                  @click="goToHome"
+                >
+                  OK
+                </v-btn>
+                <v-btn color="grey" variant="text" @click="dialog = false">
                   閉じる
                 </v-btn>
               </v-card-actions>
@@ -98,88 +93,103 @@
     </div>
 
     <script>
+      // ==============================
+      // axios共通設定
+      // ==============================
+      axios.defaults.withCredentials = true;
+      axios.defaults.baseURL = "https://backapp-yukatazawa.m3harbor.net"; // バックエンドのカスタムドメイン
+
       const { createApp, ref } = Vue;
       const { createVuetify } = Vuetify;
       const vuetify = createVuetify();
 
       createApp({
         setup() {
-          // ------------------------------
-          // 画面上のリアクティブ変数
-          // ------------------------------
           const userid = ref("");
           const password = ref("");
           const loading = ref(false);
           const dialog = ref(false);
           const message = ref("");
+          const showOkButton = ref(false);
 
-          // =============================
-          // ログイン処理
-          // =============================
+          // ==============================
+          // ログイン処理（HTTPステータスで判定）
+          // ==============================
           const login = async () => {
-            // --- 入力チェック ---
             if (!userid.value || !password.value) {
               message.value = "ユーザーIDとパスワードを入力してください。";
               dialog.value = true;
+              showOkButton.value = false;
               return;
             }
 
             loading.value = true;
-
             try {
-              // --- API呼び出し ---
-              // バックエンドのLOGINUSERエンドポイントへPOST
-              const res = await axios.post(
-                "https://backapp-yukatazawa.m3harbor.net/api/LOGINUSER",
-                {
-                  id: userid.value,
-                  password: password.value,
-                },
-                {
-                  // Cookie送受信を有効化（将来的にセッションを扱うため）
-                  withCredentials: true,
-                }
-              );
+              const res = await axios.post("/LOGINUSER", {
+                id: userid.value,
+                password: password.value,
+              });
 
               console.log("レスポンス:", res);
 
-              // --- HTTPステータス200は成功として扱う ---
+              // ステータスコード200で成功判定
               if (res.status === 200) {
-                // 認証成功
-                message.value = res.data.message;
+                message.value =
+                  "ログイン成功！\n\nセッションが作成されました。";
                 dialog.value = true;
+                showOkButton.value = true;
 
-                // 1秒後にホーム画面へ遷移
-                setTimeout(() => (window.location.href = "home.html"), 1000);
+                // 自動遷移したい場合は以下を有効化
+                // window.location.href = "home.html";
               } else {
-                // 認証失敗（resultがfailed）
-                message.value = res.data.message || "ログインに失敗しました。";
+                message.value =
+                  "ログインに失敗しました。(Status: " + res.status + ")";
                 dialog.value = true;
+                showOkButton.value = false;
               }
             } catch (err) {
-              // --- 通信エラー・認証エラー時 ---
-              console.error("通信エラー:", err);
-
-              // サーバーからのエラーメッセージを優先的に表示
-              const serverMessage = err.response?.data?.message;
-              message.value =
-                "通信エラー：" + (serverMessage || err.message || "不明なエラー");
+              // 通信・認証エラー処理
+              if (err.response) {
+                message.value =
+                  "通信エラー (" +
+                  err.response.status +
+                  "): " +
+                  (err.response.data || "サーバーエラー");
+              } else {
+                message.value = "接続に失敗しました: " + err.message;
+              }
               dialog.value = true;
+              showOkButton.value = false;
             } finally {
               loading.value = false;
             }
           };
 
-          // =============================
-          // 新規登録画面へ遷移
-          // =============================
+          // ==============================
+          // 新規登録画面へ
+          // ==============================
           const goToSignup = () => {
-            // 別画面に遷移
             window.location.href = "signup.html";
           };
 
-          // Vueの返却値
-          return { userid, password, loading, dialog, message, login, goToSignup };
+          // ==============================
+          // OKボタンでホーム画面へ
+          // ==============================
+          const goToHome = () => {
+            window.location.href = "home.html";
+          };
+
+          return {
+            userid,
+            password,
+            loading,
+            dialog,
+            message,
+            showOkButton,
+            login,
+            goToSignup,
+            goToHome,
+          };
         },
       })
         .use(vuetify)
